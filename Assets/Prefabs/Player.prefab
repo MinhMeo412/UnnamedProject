@@ -310,6 +310,7 @@ MonoBehaviour:
   syncMode: 0
   syncInterval: 0
   selectedRoom: 
+  hostCode: 
 --- !u!1 &8728254574843464527
 GameObject:
   m_ObjectHideFlags: 0

@@ -1399,6 +1399,7 @@ MonoBehaviour:
   room2Button: {fileID: 463167207}
   hostCodeText: {fileID: 1813559639}
   messageText: {fileID: 1071508085}
+  lobbyManager: {fileID: 7292542512980831338, guid: 12aedd25775e72944b40b5f6e808a425, type: 3}
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0

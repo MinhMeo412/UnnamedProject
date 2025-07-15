@@ -16,12 +16,14 @@ public class LobbyManager : NetworkBehaviour
 
     private static string serverHostCode = ""; // Biến tĩnh để lưu mã host của server
 
+    // Hàm được gọi từ LobbyUI để yêu cầu tham gia phòng
     public void JoinRoom(string roomName)
     {
-        if (!isLocalPlayer) return;
+        if (!isLocalPlayer) return; // Chỉ người chơi cục bộ mới có thể gửi lệnh
         CmdJoinRoom(roomName);
     }
 
+    // Command: Gửi yêu cầu tham gia phòng từ client lên server
     [Command]
     void CmdJoinRoom(string roomName)
     {
@@ -32,26 +34,28 @@ public class LobbyManager : NetworkBehaviour
             Debug.LogError($"Phòng không hợp lệ: {roomName}");
             return;
         }
-        selectedRoom = roomName;
-        NetworkManager.singleton.ServerChangeScene(roomName);
+        selectedRoom = roomName; // Cập nhật SyncVar để đồng bộ
+        NetworkManager.singleton.ServerChangeScene(roomName); // Chuyển scene trên server và tất cả client
     }
 
+    // Command: Gửi mã host từ client lên server để xác thực
     [Command]
     void CmdValidateHostCode(string clientHostCode)
     {
         if (clientHostCode == serverHostCode)
         {
             Debug.Log($"Client với mã host {clientHostCode} đã xác nhận hợp lệ.");
-            RpcNotifyHostCodeValid(true);
+            RpcNotifyHostCodeValid(true); // Thông báo client mã host hợp lệ
         }
         else
         {
             Debug.LogError($"Mã host không hợp lệ: {clientHostCode}. Mã host thực tế: {serverHostCode}");
-            RpcNotifyHostCodeValid(false);
-            connectionToClient.Disconnect();
+            RpcNotifyHostCodeValid(false); // Thông báo client mã host không hợp lệ
+            connectionToClient.Disconnect(); // Ngắt kết nối client nếu mã host sai
         }
     }
 
+    // TargetRpc: Gửi thông báo về tính hợp lệ của mã host đến client cụ thể
     [TargetRpc]
     void RpcNotifyHostCodeValid(bool isValid)
     {
@@ -66,7 +70,7 @@ public class LobbyManager : NetworkBehaviour
                 }
                 else
                 {
-                    lobbyUI.DisplayMessage("Mã host không hợp lệ!");
+                    lobbyUI.DisplayMessage("Mã phòng không hợp lệ! Đang ngắt kết nối.");
                 }
             }
             else
@@ -76,6 +80,7 @@ public class LobbyManager : NetworkBehaviour
         }
     }
 
+    // Hook: Được gọi khi SyncVar selectedRoom thay đổi
     void OnRoomChanged(string oldRoom, string newRoom)
     {
         if (!string.IsNullOrEmpty(newRoom))
@@ -84,42 +89,38 @@ public class LobbyManager : NetworkBehaviour
         }
     }
 
+    // Hook: Được gọi khi SyncVar hostCode thay đổi
     void OnHostCodeChanged(string oldCode, string newCode)
     {
-        Debug.Log($"Mã host trên client: {newCode}");
-        UpdateHostCodeUI(newCode);
+        Debug.Log($"Mã phòng trên client: {newCode}");
+        UpdateHostCodeUI(newCode); // Cập nhật UI hiển thị mã phòng
     }
 
+    // Được gọi trên server khi đối tượng này được spawn
     public override void OnStartServer()
     {
         base.OnStartServer();
-        selectedRoom = LOBBY_SCENE;
-        if (string.IsNullOrEmpty(serverHostCode)) // Chỉ tạo mã host nếu chưa có
+        selectedRoom = LOBBY_SCENE; // Đặt phòng ban đầu là LobbyScene trên server
+        if (!string.IsNullOrEmpty(serverHostCode)) // Use existing serverHostCode if set
         {
-            serverHostCode = GenerateHostCode();
-            hostCode = serverHostCode; // Gán vào SyncVar để đồng bộ
-            Debug.Log($"Mã host được tạo trên server: {hostCode}");
-        }
-        else
-        {
-            hostCode = serverHostCode; // Sử dụng mã host hiện có
-            Debug.Log($"Sử dụng mã host hiện có: {hostCode}");
+            hostCode = serverHostCode; // Gán vào SyncVar để đồng bộ cho tất cả client
+            Debug.Log($"Sử dụng mã phòng hiện có: {hostCode}");
         }
     }
 
+    // Được gọi trên client khi đối tượng này được spawn
     public override void OnStartClient()
     {
         base.OnStartClient();
-        Debug.Log($"LobbyManager khởi tạo trên client, netId: {netId}, mã host: {hostCode}");
+        Debug.Log($"LobbyManager khởi tạo trên client, netId: {netId}, mã phòng: {hostCode}");
         if (isLocalPlayer)
         {
             Debug.Log("Đã vào lobby!");
             if (SceneManager.GetActiveScene().name == LOBBY_SCENE)
             {
-                UpdateHostCodeUI(hostCode);
+                UpdateHostCodeUI(hostCode); // Cập nhật UI mã phòng khi vào lobby
             }
 
-            // Nếu là host (server + client), không cần kiểm tra clientHostCode
             if (isServer)
             {
                 Debug.Log("Đây là host, bỏ qua kiểm tra clientHostCode.");
@@ -127,11 +128,10 @@ public class LobbyManager : NetworkBehaviour
                 return;
             }
 
-            // Nếu là client thuần, kiểm tra clientHostCode
             CustomNetworkManager networkManager = NetworkManager.singleton as CustomNetworkManager;
             if (networkManager == null)
             {
-                Debug.LogError("Không tìm thấy CustomNetworkManager! Kiểm tra GameObject NetworkManager trong scene.");
+                Debug.LogError("Không tìm thấy CustomNetworkManager!");
                 RpcNotifyHostCodeValid(false);
                 NetworkManager.singleton.StopClient();
                 return;
@@ -140,28 +140,29 @@ public class LobbyManager : NetworkBehaviour
             Debug.Log($"clientHostCode từ CustomNetworkManager: {networkManager.clientHostCode}");
             if (!string.IsNullOrEmpty(networkManager.clientHostCode))
             {
-                CmdValidateHostCode(networkManager.clientHostCode);
+                CmdValidateHostCode(networkManager.clientHostCode); // Gửi mã phòng để xác thực
             }
             else
             {
-                Debug.LogError("clientHostCode rỗng! Đảm bảo mã host được nhập trong LoginUI.");
+                Debug.LogError("clientHostCode rỗng! Đảm bảo mã phòng được nhập trong LoginUI.");
                 RpcNotifyHostCodeValid(false);
                 NetworkManager.singleton.StopClient();
             }
         }
     }
 
-    private string GenerateHostCode()
+    // Update serverHostCode (called from CustomNetworkManager)
+    public void UpdateServerHostCode(string newCode)
     {
-        // Tạo chuỗi 6 chữ số ngẫu nhiên từ 0 đến 9
-        string code = "";
-        for (int i = 0; i < 6; i++)
+        if (isServer)
         {
-            code += Random.Range(0, 10).ToString();
+            serverHostCode = newCode;
+            hostCode = serverHostCode; // Sync to clients via SyncVar
+            Debug.Log($"Updated serverHostCode to: {serverHostCode}");
         }
-        return code;
     }
 
+    // Cập nhật UI hiển thị mã phòng
     private void UpdateHostCodeUI(string code)
     {
         if (SceneManager.GetActiveScene().name == LOBBY_SCENE)
